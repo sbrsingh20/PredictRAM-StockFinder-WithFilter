@@ -195,11 +195,17 @@ if st.button("Login"):
     if check_credentials(email, password):
         st.success("Logged in successfully!")
 
+        # Market cap selection sliders
+        st.subheader("Select Market Cap Range")
+        min_market_cap = st.slider("Minimum Market Cap", 117413688, 20505738346496, 117413688)
+        max_market_cap = st.slider("Maximum Market Cap", 117413688, 20505738346496, 20505738346496)
+
         # Fetch data automatically after successful login
         st.info("Fetching data...")  # Inform user that data fetching is in progress
         try:
-            # Read stock symbols from stocks.xlsx
+            # Read stock symbols and market caps from stocks.xlsx
             stocks_df = pd.read_excel('stocks.xlsx')
+            stocks_df = stocks_df[(stocks_df['marketCap'] >= min_market_cap) & (stocks_df['marketCap'] <= max_market_cap)]
             stocks = stocks_df['stocks'].tolist()
 
             # Fetch indicators for each stock
