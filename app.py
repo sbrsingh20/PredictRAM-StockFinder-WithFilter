@@ -7,34 +7,22 @@ import io
 # Function to fetch stock indicators
 def fetch_indicators(stock):
     ticker = yf.Ticker(stock)
-    data = ticker.history(period="1y")
-
-    if data.empty:
-        return {
-            'RSI': None,
-            'MACD': None,
-            'MACD_Signal': None,
-            'MACD_Hist': None,
-            'Upper_BB': None,
-            'Lower_BB': None,
-            'Volatility': None,
-            'Beta': None,
-            'Close': None
-        }
-
-    # Calculate indicators
-    data['RSI'] = ta.momentum.RSIIndicator(data['Close'], window=14).rsi()
-    macd = ta.trend.MACD(data['Close'])
-    data['MACD'] = macd.macd()
-    data['MACD_Signal'] = macd.macd_signal()
-    data['MACD_Hist'] = macd.macd_diff()
-    bb = ta.volatility.BollingerBands(data['Close'], window=20, window_dev=2)
-    data['Upper_BB'] = bb.bollinger_hband()
-    data['Lower_BB'] = bb.bollinger_lband()
-    data['Volatility'] = data['Close'].pct_change().rolling(window=21).std() * 100
-    beta = ticker.info.get('beta', None)
-
     try:
+        data = ticker.history(period="1y")
+        if data.empty:
+            return None
+        # Calculate indicators
+        data['RSI'] = ta.momentum.RSIIndicator(data['Close'], window=14).rsi()
+        macd = ta.trend.MACD(data['Close'])
+        data['MACD'] = macd.macd()
+        data['MACD_Signal'] = macd.macd_signal()
+        data['MACD_Hist'] = macd.macd_diff()
+        bb = ta.volatility.BollingerBands(data['Close'], window=20, window_dev=2)
+        data['Upper_BB'] = bb.bollinger_hband()
+        data['Lower_BB'] = bb.bollinger_lband()
+        data['Volatility'] = data['Close'].pct_change().rolling(window=21).std() * 100
+        beta = ticker.info.get('beta', None)
+
         return {
             'RSI': data['RSI'].iloc[-1],
             'MACD': data['MACD'].iloc[-1],
@@ -46,20 +34,11 @@ def fetch_indicators(stock):
             'Beta': beta,
             'Close': data['Close'].iloc[-1]
         }
-    except IndexError:
-        return {
-            'RSI': None,
-            'MACD': None,
-            'MACD_Signal': None,
-            'MACD_Hist': None,
-            'Upper_BB': None,
-            'Lower_BB': None,
-            'Volatility': None,
-            'Beta': None,
-            'Close': None
-        }
+    except Exception as e:
+        st.error(f"Error fetching data for {stock}: {e}")
+        return None
 
-# Function to score stocks based on indicators for different terms
+# Function to score stocks based on indicators
 def score_stock(indicators, term):
     score = 0
     if term == 'Short Term':
@@ -71,15 +50,10 @@ def score_stock(indicators, term):
         if indicators['MACD'] is not None:
             if indicators['MACD'] > 0 and indicators['MACD'] > indicators['MACD_Signal']:
                 score += 2
-
     elif term == 'Medium Term':
         if indicators['RSI'] is not None:
             if 40 <= indicators['RSI'] <= 60:
                 score += 2
-        if indicators['MACD'] is not None:
-            if abs(indicators['MACD']) < 0.01:
-                score += 1
-
     elif term == 'Long Term':
         if indicators['RSI'] is not None:
             if 40 <= indicators['RSI'] <= 60:
@@ -87,7 +61,6 @@ def score_stock(indicators, term):
         if indicators['Beta'] is not None:
             if 0.9 <= indicators['Beta'] <= 1.1:
                 score += 2
-
     return score
 
 # Function to generate recommendations based on different strategies
@@ -105,14 +78,8 @@ def generate_recommendations(indicators_list):
             upper_buy_range = current_price * 1.005
             short_stop_loss = current_price * (1 - 0.03)
             short_target = current_price * (1 + 0.05)
-            medium_stop_loss = current_price * (1 - 0.04)
-            medium_target = current_price * (1 + 0.10)
-            long_stop_loss = current_price * (1 - 0.05)
-            long_target = current_price * (1 + 0.15)
 
             short_score = score_stock(indicators, 'Short Term')
-            medium_score = score_stock(indicators, 'Medium Term')
-            long_score = score_stock(indicators, 'Long Term')
 
             if short_score > 0:
                 recommendations['Short Term'].append({
@@ -132,110 +99,43 @@ def generate_recommendations(indicators_list):
                     'Beta': indicators['Beta']
                 })
 
-            if medium_score > 0:
-                recommendations['Medium Term'].append({
-                    'Stock': stock.replace('.NS', ''),
-                    'Current Price': current_price,
-                    'Lower Buy Range': lower_buy_range,
-                    'Upper Buy Range': upper_buy_range,
-                    'Stop Loss': medium_stop_loss,
-                    'Target Price': medium_target,
-                    'Score': medium_score,
-                    'RSI': indicators['RSI'],
-                    'MACD': indicators['MACD'],
-                    'MACD_Signal': indicators['MACD_Signal'],
-                    'Upper_BB': indicators['Upper_BB'],
-                    'Lower_BB': indicators['Lower_BB'],
-                    'Volatility': indicators['Volatility'],
-                    'Beta': indicators['Beta']
-                })
-
-            if long_score > 0:
-                recommendations['Long Term'].append({
-                    'Stock': stock.replace('.NS', ''),
-                    'Current Price': current_price,
-                    'Lower Buy Range': lower_buy_range,
-                    'Upper Buy Range': upper_buy_range,
-                    'Stop Loss': long_stop_loss,
-                    'Target Price': long_target,
-                    'Score': long_score,
-                    'RSI': indicators['RSI'],
-                    'MACD': indicators['MACD'],
-                    'MACD_Signal': indicators['MACD_Signal'],
-                    'Upper_BB': indicators['Upper_BB'],
-                    'Lower_BB': indicators['Lower_BB'],
-                    'Volatility': indicators['Volatility'],
-                    'Beta': indicators['Beta']
-                })
-
     return recommendations
-
-# Function to check user credentials
-def check_credentials(email, password):
-    users_df = pd.read_excel('user.xlsx')
-    for _, row in users_df.iterrows():
-        if row['Email'] == email and row['Password'] == password:
-            return True
-    return False
 
 # Streamlit app
 st.image("png_2.3-removebg.png", width=400)  # Your logo
 st.title("PredictRAM - Stock Analysis and Call Generator")
 
-# User authentication
-if 'logged_in' not in st.session_state:
-    st.session_state.logged_in = False
+# Slider for market cap selection
+min_market_cap = st.slider("Select Minimum Market Cap", 117413688, 20505738346496, 117413688)
+max_market_cap = st.slider("Select Maximum Market Cap", min_market_cap, 20505738346496, 20505738346496)
 
-if 'min_market_cap' not in st.session_state:
-    st.session_state.min_market_cap = 117413688
+if st.button("Fetch Data"):
+    st.info("Fetching data...")
+    with st.spinner("Fetching stock indicators..."):
+        try:
+            stocks_df = pd.read_excel('stocks.xlsx')
+            filtered_stocks = stocks_df[(stocks_df['marketCap'] >= min_market_cap) & 
+                                         (stocks_df['marketCap'] <= max_market_cap)]['stocks'].tolist()
 
-if 'max_market_cap' not in st.session_state:
-    st.session_state.max_market_cap = 20505738346496
+            indicators_list = {}
+            for stock in filtered_stocks:
+                indicators = fetch_indicators(stock)
+                if indicators:
+                    indicators_list[stock] = indicators
 
-if st.session_state.logged_in:
-    st.session_state.min_market_cap = st.slider("Select Minimum Market Cap", 117413688, 20505738346496, st.session_state.min_market_cap)
-    st.session_state.max_market_cap = st.slider("Select Maximum Market Cap", st.session_state.min_market_cap, 20505738346496, st.session_state.max_market_cap)
-
-    if st.button("Reset"):
-        st.session_state.min_market_cap = 117413688
-        st.session_state.max_market_cap = 20505738346496
-
-    if st.session_state.min_market_cap is not None and st.session_state.max_market_cap is not None:
-        st.info("Fetching data...")
-        with st.spinner("Fetching stock indicators..."):
-            try:
-                stocks_df = pd.read_excel('stocks.xlsx')
-                stocks = stocks_df['stocks'].tolist()
-                market_caps = stocks_df['marketCap'].tolist()
-
-                filtered_stocks = [stock for stock, cap in zip(stocks, market_caps)
-                                   if st.session_state.min_market_cap <= cap <= st.session_state.max_market_cap]
-
-                indicators_list = {stock: fetch_indicators(stock) for stock in filtered_stocks}
+            if indicators_list:
                 st.success("Data fetched successfully!")
-
-                # Generate recommendations
                 recommendations = generate_recommendations(indicators_list)
 
-                # Display top 20 recommendations for each term
-                st.subheader("Top 20 Short Term Trades")
+                # Display top recommendations
+                st.subheader("Top Short Term Trades")
                 short_term_df = pd.DataFrame(recommendations['Short Term']).sort_values(by='Score', ascending=False).head(20)
                 st.table(short_term_df)
-
-                st.subheader("Top 20 Medium Term Trades")
-                medium_term_df = pd.DataFrame(recommendations['Medium Term']).sort_values(by='Score', ascending=False).head(20)
-                st.table(medium_term_df)
-
-                st.subheader("Top 20 Long Term Trades")
-                long_term_df = pd.DataFrame(recommendations['Long Term']).sort_values(by='Score', ascending=False).head(20)
-                st.table(long_term_df)
 
                 # Export to Excel
                 output = io.BytesIO()
                 with pd.ExcelWriter(output, engine='openpyxl') as writer:
                     short_term_df.to_excel(writer, sheet_name='Short Term', index=False)
-                    medium_term_df.to_excel(writer, sheet_name='Medium Term', index=False)
-                    long_term_df.to_excel(writer, sheet_name='Long Term', index=False)
                 output.seek(0)
 
                 st.download_button(
@@ -244,16 +144,7 @@ if st.session_state.logged_in:
                     file_name="stock_recommendations.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
-
-            except Exception as e:
-                st.error(f"An error occurred: {e}")
-else:
-    email = st.text_input("Email")
-    password = st.text_input("Password", type="password")
-
-    if st.button("Login"):
-        if check_credentials(email, password):
-            st.session_state.logged_in = True
-            st.success("Logged in successfully!")
-        else:
-            st.error("Invalid email or password.")
+            else:
+                st.warning("No valid data fetched.")
+        except Exception as e:
+            st.error(f"An error occurred: {e}")
