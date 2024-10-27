@@ -195,56 +195,67 @@ if st.button("Login"):
     if check_credentials(email, password):
         st.success("Logged in successfully!")
 
+        # Initialize session state for market cap selection
+        if 'min_market_cap' not in st.session_state:
+            st.session_state.min_market_cap = 117413688
+        
+        if 'max_market_cap' not in st.session_state:
+            st.session_state.max_market_cap = 20505738346496
+
         # First slider for minimum market cap
-        min_market_cap = st.slider("Select Minimum Market Cap", 117413688, 20505738346496, 117413688)
+        st.session_state.min_market_cap = st.slider("Select Minimum Market Cap", 117413688, 20505738346496, st.session_state.min_market_cap)
         
         # Second slider for maximum market cap
-        max_market_cap = st.slider("Select Maximum Market Cap", min_market_cap, 20505738346496, 20505738346496)
+        st.session_state.max_market_cap = st.slider("Select Maximum Market Cap", st.session_state.min_market_cap, 20505738346496, st.session_state.max_market_cap)
 
-        # Fetch data automatically after successful login and both market cap values are set
-        st.info("Fetching data...")  # Inform user that data fetching is in progress
-        try:
-            # Read stock symbols and market caps from stocks.xlsx
-            stocks_df = pd.read_excel('stocks.xlsx')
-            stocks_df = stocks_df[(stocks_df['marketCap'] >= min_market_cap) & (stocks_df['marketCap'] <= max_market_cap)]
-            stocks = stocks_df['stocks'].tolist()
+        # Fetch data after both market cap values are set
+        if st.session_state.min_market_cap is not None and st.session_state.max_market_cap is not None:
+            st.info("Fetching data...")  # Inform user that data fetching is in progress
+            try:
+                # Read stock symbols from stocks.xlsx
+                stocks_df = pd.read_excel('stocks.xlsx')
+                stocks = stocks_df['stocks'].tolist()
+                market_caps = stocks_df['marketCap'].tolist()
 
-            # Fetch indicators for each stock
-            indicators_list = {stock: fetch_indicators(stock) for stock in stocks}
-            st.success("Data fetched successfully!")  # Notify user of success
+                # Filter stocks based on selected market cap range
+                filtered_stocks = [stock for stock, cap in zip(stocks, market_caps) if st.session_state.min_market_cap <= cap <= st.session_state.max_market_cap]
 
-            # Generate recommendations
-            recommendations = generate_recommendations(indicators_list)
+                # Fetch indicators for each filtered stock
+                indicators_list = {stock: fetch_indicators(stock) for stock in filtered_stocks}
+                st.success("Data fetched successfully!")  # Notify user of success
 
-            # Display top 20 recommendations for each term
-            st.subheader("Top 20 Short Term Trades")
-            short_term_df = pd.DataFrame(recommendations['Short Term']).sort_values(by='Score', ascending=False).head(20)
-            st.table(short_term_df)
+                # Generate recommendations
+                recommendations = generate_recommendations(indicators_list)
 
-            st.subheader("Top 20 Medium Term Trades")
-            medium_term_df = pd.DataFrame(recommendations['Medium Term']).sort_values(by='Score', ascending=False).head(20)
-            st.table(medium_term_df)
+                # Display top 20 recommendations for each term
+                st.subheader("Top 20 Short Term Trades")
+                short_term_df = pd.DataFrame(recommendations['Short Term']).sort_values(by='Score', ascending=False).head(20)
+                st.table(short_term_df)
 
-            st.subheader("Top 20 Long Term Trades")
-            long_term_df = pd.DataFrame(recommendations['Long Term']).sort_values(by='Score', ascending=False).head(20)
-            st.table(long_term_df)
+                st.subheader("Top 20 Medium Term Trades")
+                medium_term_df = pd.DataFrame(recommendations['Medium Term']).sort_values(by='Score', ascending=False).head(20)
+                st.table(medium_term_df)
 
-            # Export to Excel
-            output = io.BytesIO()
-            with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                short_term_df.to_excel(writer, sheet_name='Short Term', index=False)
-                medium_term_df.to_excel(writer, sheet_name='Medium Term', index=False)
-                long_term_df.to_excel(writer, sheet_name='Long Term', index=False)
-            output.seek(0)
+                st.subheader("Top 20 Long Term Trades")
+                long_term_df = pd.DataFrame(recommendations['Long Term']).sort_values(by='Score', ascending=False).head(20)
+                st.table(long_term_df)
 
-            st.download_button(
-                label="Download Recommendations",
-                data=output,
-                file_name="stock_recommendations.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+                # Export to Excel
+                output = io.BytesIO()
+                with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                    short_term_df.to_excel(writer, sheet_name='Short Term', index=False)
+                    medium_term_df.to_excel(writer, sheet_name='Medium Term', index=False)
+                    long_term_df.to_excel(writer, sheet_name='Long Term', index=False)
+                output.seek(0)
 
-        except Exception as e:
-            st.error(f"An error occurred: {e}")
+                st.download_button(
+                    label="Download Recommendations",
+                    data=output,
+                    file_name="stock_recommendations.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+
+            except Exception as e:
+                st.error(f"An error occurred: {e}")
     else:
         st.error("Invalid email or password.")
