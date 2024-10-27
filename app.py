@@ -195,12 +195,13 @@ if st.button("Login"):
     if check_credentials(email, password):
         st.success("Logged in successfully!")
 
-        # Market cap selection sliders
-        st.subheader("Select Market Cap Range")
-        min_market_cap = st.slider("Minimum Market Cap", 117413688, 20505738346496, 117413688)
-        max_market_cap = st.slider("Maximum Market Cap", 117413688, 20505738346496, 20505738346496)
+        # First slider for minimum market cap
+        min_market_cap = st.slider("Select Minimum Market Cap", 117413688, 20505738346496, 117413688)
+        
+        # Second slider for maximum market cap
+        max_market_cap = st.slider("Select Maximum Market Cap", min_market_cap, 20505738346496, 20505738346496)
 
-        # Fetch data automatically after successful login
+        # Fetch data automatically after successful login and both market cap values are set
         st.info("Fetching data...")  # Inform user that data fetching is in progress
         try:
             # Read stock symbols and market caps from stocks.xlsx
