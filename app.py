@@ -184,78 +184,57 @@ def check_credentials(email, password):
     return False
 
 # Streamlit app
-st.image("png_2.3-removebg.png", width=400)  # Replace "your_logo.png" with the path to your logo
+st.image("png_2.3-removebg.png", width=400)
 st.title("PredictRAM - Stock Analysis and Call Generator")
 
 # User authentication
-email = st.text_input("Email")
-password = st.text_input("Password", type="password")
+if 'logged_in' not in st.session_state:
+    st.session_state.logged_in = False
 
-if st.button("Login"):
-    if check_credentials(email, password):
-        st.success("Logged in successfully!")
+if 'min_market_cap' not in st.session_state:
+    st.session_state.min_market_cap = 117413688
 
-        # Initialize session state for market cap selection
-        if 'min_market_cap' not in st.session_state:
-            st.session_state.min_market_cap = 117413688
-        
-        if 'max_market_cap' not in st.session_state:
-            st.session_state.max_market_cap = 20505738346496
+if 'max_market_cap' not in st.session_state:
+    st.session_state.max_market_cap = 20505738346496
 
-        # First slider for minimum market cap
-        st.session_state.min_market_cap = st.slider("Select Minimum Market Cap", 117413688, 20505738346496, st.session_state.min_market_cap)
-        
-        # Second slider for maximum market cap
-        st.session_state.max_market_cap = st.slider("Select Maximum Market Cap", st.session_state.min_market_cap, 20505738346496, st.session_state.max_market_cap)
+if st.session_state.logged_in:
+    # Display market cap sliders if logged in
+    st.session_state.min_market_cap = st.slider("Select Minimum Market Cap", 117413688, 20505738346496, st.session_state.min_market_cap)
+    st.session_state.max_market_cap = st.slider("Select Maximum Market Cap", st.session_state.min_market_cap, 20505738346496, st.session_state.max_market_cap)
 
-        # Fetch data after both market cap values are set
-        if st.session_state.min_market_cap is not None and st.session_state.max_market_cap is not None:
-            st.info("Fetching data...")  # Inform user that data fetching is in progress
+    if st.button("Reset"):
+        # Reset only the market cap selections
+        st.session_state.min_market_cap = 117413688
+        st.session_state.max_market_cap = 20505738346496
+
+    # Fetch data if both sliders have values
+    if st.session_state.min_market_cap is not None and st.session_state.max_market_cap is not None:
+        st.info("Fetching data...")
+        with st.spinner("Fetching stock indicators..."):
             try:
-                # Read stock symbols from stocks.xlsx
                 stocks_df = pd.read_excel('stocks.xlsx')
                 stocks = stocks_df['stocks'].tolist()
                 market_caps = stocks_df['marketCap'].tolist()
 
                 # Filter stocks based on selected market cap range
-                filtered_stocks = [stock for stock, cap in zip(stocks, market_caps) if st.session_state.min_market_cap <= cap <= st.session_state.max_market_cap]
+                filtered_stocks = [stock for stock, cap in zip(stocks, market_caps)
+                                   if st.session_state.min_market_cap <= cap <= st.session_state.max_market_cap]
 
-                # Fetch indicators for each filtered stock
+                # Fetch indicators...
                 indicators_list = {stock: fetch_indicators(stock) for stock in filtered_stocks}
-                st.success("Data fetched successfully!")  # Notify user of success
+                st.success("Data fetched successfully!")
 
-                # Generate recommendations
-                recommendations = generate_recommendations(indicators_list)
-
-                # Display top 20 recommendations for each term
-                st.subheader("Top 20 Short Term Trades")
-                short_term_df = pd.DataFrame(recommendations['Short Term']).sort_values(by='Score', ascending=False).head(20)
-                st.table(short_term_df)
-
-                st.subheader("Top 20 Medium Term Trades")
-                medium_term_df = pd.DataFrame(recommendations['Medium Term']).sort_values(by='Score', ascending=False).head(20)
-                st.table(medium_term_df)
-
-                st.subheader("Top 20 Long Term Trades")
-                long_term_df = pd.DataFrame(recommendations['Long Term']).sort_values(by='Score', ascending=False).head(20)
-                st.table(long_term_df)
-
-                # Export to Excel
-                output = io.BytesIO()
-                with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                    short_term_df.to_excel(writer, sheet_name='Short Term', index=False)
-                    medium_term_df.to_excel(writer, sheet_name='Medium Term', index=False)
-                    long_term_df.to_excel(writer, sheet_name='Long Term', index=False)
-                output.seek(0)
-
-                st.download_button(
-                    label="Download Recommendations",
-                    data=output,
-                    file_name="stock_recommendations.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
-
+                # Display recommendations...
+                
             except Exception as e:
                 st.error(f"An error occurred: {e}")
-    else:
-        st.error("Invalid email or password.")
+else:
+    email = st.text_input("Email")
+    password = st.text_input("Password", type="password")
+
+    if st.button("Login"):
+        if check_credentials(email, password):
+            st.session_state.logged_in = True
+            st.success("Logged in successfully!")
+        else:
+            st.error("Invalid email or password.")
